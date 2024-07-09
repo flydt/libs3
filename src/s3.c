@@ -94,11 +94,11 @@ static char putenvBufG[256];
 // defined here only because simplicity, don't ask why
 
 // used to hide header section in list bucket
-int noheader = 0;
+static int noheader = 0;
 
 // used to sharding list result in order to run multiple list task and every
 // list task only output a subset of result matching with sharding-id
-int shardings = 0, sharding_id = 0;
+static int shardings = 0, sharding_id = 0;
 
 
 // Option prefixes -----------------------------------------------------------
