@@ -119,6 +119,8 @@ static char putenvBufG[256];
 #define UPLOAD_ID_MARKER_PREFIX_LEN (sizeof(UPLOAD_ID_MARKER_PREFIX) - 1)
 #define MAXKEYS_PREFIX "maxkeys="
 #define MAXKEYS_PREFIX_LEN (sizeof(MAXKEYS_PREFIX) - 1)
+#define NO_HEADER_PREFIX "noheader="
+#define NO_HEADER_PREFIX_LEN (sizeof(NO_HEADER_PREFIX) - 1)
 #define FILENAME_PREFIX "filename="
 #define FILENAME_PREFIX_LEN (sizeof(FILENAME_PREFIX) - 1)
 #define CONTENT_LENGTH_PREFIX "contentLength="
@@ -1266,7 +1268,8 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker,
 
 static void list_bucket(const char *bucketName, const char *prefix,
                         const char *marker, const char *delimiter,
-                        int maxkeys, int allDetails)
+                        int maxkeys, int allDetails,
+                        int no_header)
 {
     S3_init();
 
@@ -1310,7 +1313,7 @@ static void list_bucket(const char *bucketName, const char *prefix,
     } while (data.isTruncated && (!maxkeys || (data.keyCount < maxkeys)));
 
     if (statusG == S3StatusOK) {
-        if (!data.keyCount) {
+        if (!data.keyCount && !no_header) {
             printListBucketHeader(allDetails);
         }
     }
@@ -1333,6 +1336,8 @@ static void list(int argc, char **argv, int optindex)
 
     const char *prefix = 0, *marker = 0, *delimiter = 0;
     int maxkeys = 0, allDetails = 0;
+    // used to hide header section in list bucket
+    int noheader = 0;
     while (optindex < argc) {
         char *param = argv[optindex++];
 
@@ -1360,6 +1365,9 @@ static void list(int argc, char **argv, int optindex)
         else if (!bucketName) {
             bucketName = param;
         }
+        else if (!strncmp(param, NO_HEADER_PREFIX, NO_HEADER_PREFIX_LEN)) {
+            noheader = convertInt(&(param[NO_HEADER_PREFIX_LEN]), "noheader");
+        }
         else {
             fprintf(stderr, "\nERROR: Unknown param: %s\n", param);
             usageExit(stderr);
@@ -1368,7 +1376,7 @@ static void list(int argc, char **argv, int optindex)
 
     if (bucketName) {
         list_bucket(bucketName, prefix, marker, delimiter, maxkeys,
-                    allDetails);
+                    allDetails, noheader);
     }
     else {
         list_service(allDetails);

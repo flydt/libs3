@@ -2,3 +2,22 @@ This directory contains the libs3 library.
 
 The libs3 library is free software.  See the file LICENSE for copying
 permission.
+
+CHANGELOG
+
+2024.07.09
+
+add command option 'noheader' for 's3 -u list', example:
+
+standard output:
+
+[root@vm-105 bin]# ./s3-static -u list bucket_test
+                       Key                             Last Modified      Size
+--------------------------------------------------  --------------------  -----
+
+output with 'noheader=1'
+
+[root@vm-105 bin]# ./s3-static -u list bucket_test noheader=1
+[root@vm-105 bin]#
+
+
