@@ -20,4 +20,22 @@ output with 'noheader=1'
 [root@vm-105 bin]# ./s3-static -u list bucket_test noheader=1
 [root@vm-105 bin]#
 
+2024.07.09
+
+add command option 'shardings' and 'sharding-id' for 's3 -u list', example:
+
+[root@vm-105 libs3]# build/bin/s3-static -u list test noheader=1  > list
+[root@vm-105 libs3]# build/bin/s3-static -u list test noheader=1 shardings=2 sharding-id=1 > list1
+[root@vm-105 libs3]# build/bin/s3-static -u list test noheader=1 shardings=2 sharding-id=0 > list0
+
+[root@vm-105 libs3]# cat list | wc -l
+193
+[root@vm-105 libs3]# cat list0 | wc -l
+94
+[root@vm-105 libs3]# cat list1 | wc -l
+99
+[root@vm-105 libs3]#
+
+it can split list result by two list command with different sharding-id, and get full result with two
+result together
 

@@ -90,6 +90,16 @@ static char errorDetailsG[4096] = { 0 };
 
 static char putenvBufG[256];
 
+// s3 list command line option -------------------------------------------------------------
+// defined here only because simplicity, don't ask why
+
+// used to hide header section in list bucket
+int noheader = 0;
+
+// used to sharding list result in order to run multiple list task and every
+// list task only output a subset of result matching with sharding-id
+int shardings = 0, sharding_id = 0;
+
 
 // Option prefixes -----------------------------------------------------------
 
@@ -119,6 +129,10 @@ static char putenvBufG[256];
 #define UPLOAD_ID_MARKER_PREFIX_LEN (sizeof(UPLOAD_ID_MARKER_PREFIX) - 1)
 #define MAXKEYS_PREFIX "maxkeys="
 #define MAXKEYS_PREFIX_LEN (sizeof(MAXKEYS_PREFIX) - 1)
+#define SHARDINGS_PREFIX "shardings="
+#define SHARDINGS_PREFIX_LEN (sizeof(SHARDINGS_PREFIX) - 1)
+#define SHARDING_ID_PREFIX "sharding-id="
+#define SHARDING_ID_PREFIX_LEN (sizeof(SHARDING_ID_PREFIX) - 1)
 #define NO_HEADER_PREFIX "noheader="
 #define NO_HEADER_PREFIX_LEN (sizeof(NO_HEADER_PREFIX) - 1)
 #define FILENAME_PREFIX "filename="
@@ -250,6 +264,9 @@ static void usageExit(FILE *out)
 "     [marker]           : Where in results set to start listing\n"
 "     [delimiter]        : Delimiter for rolling up results set\n"
 "     [maxkeys]          : Maximum number of keys to return in results set\n"
+"     [noheader]         : Dont output header section in list result\n"
+"     [shardings]        : Sharding number of list\n"
+"     [sharding-id]      : Sharding id of the list command\n"
 "     [allDetails]       : Show full details for each key\n"
 "\n"
 "   getacl               : Get the ACL of a bucket or key\n"
@@ -1147,6 +1164,8 @@ typedef struct list_bucket_callback_data
 
 static void printListBucketHeader(int allDetails)
 {
+    if (noheader) return;
+
     printf("%-50s  %-20s  %-5s",
            "                       Key",
            "   Last Modified", "Size");
@@ -1201,6 +1220,24 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker,
     int i;
     for (i = 0; i < contentsCount; i++) {
         const S3ListBucketContent *content = &(contents[i]);
+
+        // sharding function logic
+        if (shardings)
+        {
+            int sum_name = 0;
+            char *ptr_key = (char *)content->key;
+            while (*ptr_key)
+            {
+                sum_name += *ptr_key;
+                ptr_key++;
+            }
+            if (sum_name && ((sum_name % shardings) != sharding_id))
+            {
+                // only process list key, which hash value match with sharding_id
+                continue;
+            }
+        }
+
         char timebuf[256];
         if (0) {
             time_t t = (time_t) content->lastModified;
@@ -1244,14 +1281,22 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker,
                 f /= (1024 * 1024);
                 sprintf(sizebuf, "%1.2fG", f);
             }
-            printf("%-50s  %s  %s", content->key, timebuf, sizebuf);
-            if (data->allDetails) {
-                printf("  %-34s  %-64s  %-12s",
-                       content->eTag,
-                       content->ownerId ? content->ownerId : "",
-                       content->ownerDisplayName ?
-                       content->ownerDisplayName : "");
+            if (noheader)
+            {
+                printf("%s", content->key);
             }
+            else
+            {
+                printf("%-50s  %s  %s", content->key, timebuf, sizebuf);
+                if (data->allDetails)
+                {
+                    printf("  %-34s  %-64s  %-12s",
+                           content->eTag,
+                           content->ownerId ? content->ownerId : "",
+                           content->ownerDisplayName ? content->ownerDisplayName : "");
+                }
+            }
+
             printf("\n");
         }
     }
@@ -1268,8 +1313,7 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker,
 
 static void list_bucket(const char *bucketName, const char *prefix,
                         const char *marker, const char *delimiter,
-                        int maxkeys, int allDetails,
-                        int no_header)
+                        int maxkeys, int allDetails)
 {
     S3_init();
 
@@ -1313,7 +1357,7 @@ static void list_bucket(const char *bucketName, const char *prefix,
     } while (data.isTruncated && (!maxkeys || (data.keyCount < maxkeys)));
 
     if (statusG == S3StatusOK) {
-        if (!data.keyCount && !no_header) {
+        if (!data.keyCount) {
             printListBucketHeader(allDetails);
         }
     }
@@ -1336,8 +1380,7 @@ static void list(int argc, char **argv, int optindex)
 
     const char *prefix = 0, *marker = 0, *delimiter = 0;
     int maxkeys = 0, allDetails = 0;
-    // used to hide header section in list bucket
-    int noheader = 0;
+
     while (optindex < argc) {
         char *param = argv[optindex++];
 
@@ -1368,15 +1411,31 @@ static void list(int argc, char **argv, int optindex)
         else if (!strncmp(param, NO_HEADER_PREFIX, NO_HEADER_PREFIX_LEN)) {
             noheader = convertInt(&(param[NO_HEADER_PREFIX_LEN]), "noheader");
         }
+        else if (!strncmp(param, SHARDINGS_PREFIX, SHARDINGS_PREFIX_LEN)) {
+            shardings = convertInt(&(param[SHARDINGS_PREFIX_LEN]), "shardings");
+        }
+        else if (!strncmp(param, SHARDING_ID_PREFIX, SHARDING_ID_PREFIX_LEN)) {
+            sharding_id = convertInt(&(param[SHARDING_ID_PREFIX_LEN]), "sharding-id");
+        }
         else {
             fprintf(stderr, "\nERROR: Unknown param: %s\n", param);
             usageExit(stderr);
         }
     }
 
+    if (shardings || sharding_id)
+    {
+        if ((shardings < 0) || (sharding_id < 0) || (shardings <= sharding_id))
+        {
+            fprintf(stderr, "\nERROR: Invalid param: shardings='%d' and sharding-id=%d\n",
+                    shardings, sharding_id);
+            usageExit(stderr);
+        }
+    }
+
     if (bucketName) {
         list_bucket(bucketName, prefix, marker, delimiter, maxkeys,
-                    allDetails, noheader);
+                    allDetails);
     }
     else {
         list_service(allDetails);
