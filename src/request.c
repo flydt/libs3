@@ -1223,6 +1223,8 @@ static S3Status setup_curl(Request *request,
     curl_easy_setopt_safe(CURLOPT_LOW_SPEED_LIMIT, 1024);
     curl_easy_setopt_safe(CURLOPT_LOW_SPEED_TIME, 15);
 
+    /* only allow connection to be reused in 60 seconds */
+    curl_easy_setopt_safe(CURLOPT_MAXLIFETIME_CONN, 60L);
 
     if (params->timeoutMs > 0) {
         curl_easy_setopt_safe(CURLOPT_TIMEOUT_MS, params->timeoutMs);
