@@ -1257,7 +1257,7 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker,
         else {
             time_t t = (time_t) content->lastModified;
             strftime(timebuf, sizeof(timebuf), "%Y-%m-%dT%H:%M:%SZ",
-                     gmtime(&t));
+                     localtime(&t));
             char sizebuf[16];
             if (content->size < 100000) {
                 sprintf(sizebuf, "%5llu", (unsigned long long) content->size);
@@ -1283,7 +1283,7 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker,
             }
             if (noheader)
             {
-                printf("%s", content->key);
+                printf("%s %lu", content->key, content->size);
             }
             else
             {
