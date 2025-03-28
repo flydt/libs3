@@ -1217,14 +1217,16 @@ static S3Status setup_curl(Request *request,
     curl_easy_setopt_safe(CURLOPT_USERAGENT, userAgentG);
 
     // Set the low speed limit and time; we abort transfers that stay at
-    // less than 1K per second for more than 15 seconds.
+    // less than 1K per second for more than 120 seconds.
+    // should not use too small TIME, it will lead connection cut off
+    // by curl, and libs3 put/get callback function not called
     // xxx todo - make these configurable
     // xxx todo - allow configurable max send and receive speed
     curl_easy_setopt_safe(CURLOPT_LOW_SPEED_LIMIT, 1024);
-    curl_easy_setopt_safe(CURLOPT_LOW_SPEED_TIME, 15);
+    curl_easy_setopt_safe(CURLOPT_LOW_SPEED_TIME, 120);
 
-    /* only allow connection to be reused in 60 seconds */
-    curl_easy_setopt_safe(CURLOPT_MAXLIFETIME_CONN, 60L);
+    // max connections in connection pool set to 20
+    curl_easy_setopt_safe(CURLOPT_MAXCONNECTS, 20L);
 
     if (params->timeoutMs > 0) {
         curl_easy_setopt_safe(CURLOPT_TIMEOUT_MS, params->timeoutMs);
